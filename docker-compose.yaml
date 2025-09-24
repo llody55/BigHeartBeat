@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+  bigheartbeat:
+    image: swr.cn-southwest-2.myhuaweicloud.com/llody/bigheartbeat:v0.1.0
+    container_name: bigheartbeat
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    environment:
+      - LOG_LEVEL=INFO
+      - VICTORIA_METRICS_HOST=10.0.0.16:31081
+      - TIMEOUT_SECONDS=30
+    volumes:
+      - /lgdata/bigheartbeat/data:/app/instance
+      - /etc/localtime:/etc/localtime
+    restart: unless-stopped

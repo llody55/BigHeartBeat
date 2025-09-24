@@ -1,0 +1,7 @@
+flask~=2.3.3
+flask-sqlalchemy~=3.0.5
+apscheduler~=3.10.4
+urllib3~=1.26.18
+psutil~=5.9.6
+requests~=2.32.3
+prometheus_client~=0.21.1

@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+{% block title %}主机信息{% endblock %}
+{% block item_1 %}layui-nav-itemed{% endblock %}
+{% block head_style %}
+<style>
+    /* 刷新按钮样式 */
+    .custom-refresh-btn {
+        float: right;
+        background-color: white;
+        border: 1px solid #e6e6e6;
+        color: #333;
+        border-radius: 2px;
+    }
+
+    .custom-refresh-btn:hover {
+        background-color: #f2f2f2; /* 鼠标悬浮时的背景色 */
+        cursor: pointer; /* 鼠标悬浮时变成手形图标 */
+    }
+    /* 保留水平行边框，移除垂直列边框 */
+    .layui-table td, .layui-table th {
+        border-left: none !important;
+        border-right: none !important;
+    }
+    /* 为了保留水平行边框，确保行的顶部和底部边框保持 */
+    .layui-table tr {
+        border-top: 1px solid #e6e6e6 !important;
+    }
+    .layui-table th {
+        border-top: 1px solid #e6e6e6 !important;
+    }
+    .vol-cell {
+        cursor: pointer;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 200px; /* 根据需要调整 */
+        display: inline-block;
+        vertical-align: middle;
+    }
+
+    .status-online { color: #009688; font-weight: bold; }
+    .status-offline { color: #FF5722; font-weight: bold; }
+    .layui-card { box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 8px; }
+    .layui-card-header { font-size: 16px; font-weight: bold; background: linear-gradient(to right, #f0f9ff, #e6f3ff); }
+    .layui-table { margin: 0; font-size: 14px; }
+    .layui-table th { background-color: #f8f9fa; font-size: 14px; }
+    .metric-card { margin-bottom: 15px; padding: 10px; background: #fff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .metric-value { font-size: 20px; color: #1E9FFF; }
+    .metric-label { color: #666; font-size: 12px; }
+</style>
+{% endblock %}
+{% block context %}
+<span class="layui-breadcrumb">
+    <a href="#">首页</a>
+    <a><cite>系统信息</cite></a>
+</span>
+<hr>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <div class="layui-row">
+            <div class="layui-col-md12">
+                <input type="text" name="name" lay-verify="title" placeholder="请输入名称" class="layui-input"
+                    style="width: 150px;float: left">
+                <button class="layui-btn" id="searchBtn" style="float: left">搜索</button>
+                <!-- 手动刷新按钮 -->
+                <button class="layui-btn reloads custom-refresh-btn" id="refreshBtn" lay-event="shuaBtn">
+                    <i class="layui-icon layui-icon-refresh"></i>
+                </button>
+                <!-- 定时刷新开关 -->
+                <button class="layui-btn layui-btn-warm" id="autoRefreshBtn" style="float: right;">
+                    <i class="layui-icon layui-icon-time"></i> 定时刷新
+                    <span id="autoRefreshStatus">（已关闭）</span>
+                </button>
+            </div>
+
+            <div class="layui-col-md12">
+                <!-- 表格工具栏 -->
+                <table class="layui-hide" id="demo" lay-filter="test"></table>
+                <!--  行工具 -->
+                <script type="text/html" id="barDemo">
+                    <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="auth">详情</a>
+                    <a class="layui-btn layui-btn-xs layui-bg-red" lay-event="del">删除</a>
+                </script>
+                
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block custom_js %}
+    <!-- 引入 Layui 的 JS 文件 -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/layui/2.8.17/layui.min.js"></script> -->
+    <script src="/static/layui/layui.js"></script>
+    <script>
+        // 初始化 Layui
+        layui.use(['table', 'form'], function () {
+            var table = layui.table;
+            var form = layui.form;
+            var $ = layui.jquery;
+
+            // 定义表格列
+            table.render({
+                elem: '#demo', // 表格容器的 ID
+                url: '/list_hosts', // 数据接口（Flask 服务端的接口）
+                page: true, //开启分页
+                toolbar: '#demoTable',
+                skin: 'line', // 表格风格
+                even: true, // 开启隔行背景
+                text: {
+                    none: '暂无数据' // 无数据时的提示
+                },
+                defaultToolbar: ['filter', 'exports', 'print', { //自定义头部工具栏右侧图标。如无需自定义，去除该参数即可
+                    title: '提示'
+                    , layEvent: 'LAYTABLE_TIPS'
+                    , icon: 'layui-icon-tips'
+                }],
+                cols: [
+                    [ // 表头
+                        { type: 'checkbox', fixed: 'left' } ,  //全选按钮
+                        {field: 'host_id', title: '主机ID'},
+                        {field: 'hostname', title: '主机名', sort: true},
+                        {field: 'ip', title: '内网 IP', sort: true},
+                        {field: 'public_ip', title: '公网 IP', sort: true},
+                        {field: 'os_version', title: '操作系统', sort: true},
+                        {field: 'client_version', title: '客户端版本', sort: true},
+                        {field: 'last_report_time', title: '最后上报时间', sort: true},
+                        {field: 'status', title: '状态', sort: true, templet: function(d) {
+                            return d.status === 'up' ? '<span class="layui-badge layui-bg-green">在线</span>' : '<span class="layui-badge layui-bg-red">离线</span>';
+                        }},
+                        { fixed: 'right', title: '操作', toolbar: '#barDemo', width: 250, align: "center" }//操作按钮
+                    ]
+                ],
+                id:'TT', //设置表格ID，用于更新数据
+            });
+            // 监听刷新按钮点击事件
+            $('#refreshBtn').on('click', function () {
+                //获取当前页码
+                var currPage = $('.layui-laypage-em').next().html();
+                    // 进行刷新操作
+                    table.reload('TT', {
+                        url: "/list_hosts",
+                        page: { curr: currPage }//刷新当前页码
+                    });
+            });
+            // 定时器 ID，用于控制定时器的开启和关闭
+            var intervalId = null;
+
+            // 监听定时刷新按钮点击事件
+            $('#autoRefreshBtn').on('click', function () {
+                if (intervalId) {
+                    // 如果定时器已开启，则关闭定时刷新
+                    clearInterval(intervalId);
+                    intervalId = null;
+                    $('#autoRefreshStatus').text('（已关闭）');
+                    $(this).removeClass('layui-btn-danger').addClass('layui-btn-warm');
+                } else {
+                    // 如果定时器未开启，则开启定时刷新
+                    intervalId = setInterval(function() {
+                        // 获取当前页码
+                        var currPage = $('.layui-laypage-em').next().html();
+                        // 进行刷新操作
+                        refreshTable(currPage);
+                    }, 30000); // 30000毫秒 = 30秒
+                    $('#autoRefreshStatus').text('（已开启）');
+                    $(this).removeClass('layui-btn-warm').addClass('layui-btn-danger');
+                }
+            });
+
+            // 刷新表格的函数
+            function refreshTable(currPage) {
+                $.ajax({
+                    url: '/list_hosts', // 数据接口
+                    type: 'GET',
+                    data: { page: currPage }, // 传递当前页码
+                    success: function(res) {
+                        // 更新表格数据
+                        table.reload('TT', {
+                            data: res.data, // 直接更新数据源
+                            page: { curr: currPage } // 保持当前页码
+                        });
+                    },
+                    error: function(err) {
+                        console.error('数据刷新失败:', err);
+                    }
+                });
+            }
+
+            //监听行工具事件
+            table.on('tool(test)', function (obj) {
+                var data = obj.data;
+                var layEvent = obj.event;
+                var tr = obj.tr;
+                if (obj.event === 'auth') {
+                    //layer.msg("开发中，请等待！！！", { icon: 5 })
+                    $.ajax({
+                        url: '/host_details_json/' + data.host_id,
+                        type: 'GET',
+                        success: function(res){
+                            if(res.status === 'success'){
+                                var host = res.host;
+                                var metrics = host.metrics || {}; // 如果 metrics 为空对象，则将其替换为空字符串
+                                // 提供默认值
+                                var defaultMetrics = {
+                                    client_uptime: [{value: [null, 'N/A']}],
+                                    client_cpu_usage: [{value: [null, 'N/A']}],
+                                    client_memory_usage: [{value: [null, 'N/A']}],
+                                    client_process_count: [{value: [null, 'N/A']}]
+                                };
+                                // 合并默认值和实际值
+                                metrics = Object.assign({}, defaultMetrics, metrics);
+                                var content = `
+                                    <div class="layui-container">
+                                        <div class="layui-row layui-col-space10">
+                                            <!-- 基本信息卡片 -->
+                                            <div class="layui-col-md6">
+                                                <div class="layui-card">
+                                                    <div class="layui-card-header">基本信息</div>
+                                                    <div class="layui-card-body">
+                                                        <table class="layui-table">
+                                                            <tr><th>主机ID</th><td>${host.host_id || 'N/A'}</td></tr>
+                                                            <tr><th>主机名</th><td>${host.hostname || 'N/A'}</td></tr>
+                                                            <tr><th>内网IP</th><td>${host.ip || 'N/A'}</td></tr>
+                                                            <tr><th>公网IP</th><td>${host.public_ip || 'N/A'}</td></tr>
+                                                            <tr><th>操作系统</th><td>${host.os_version || 'N/A'}</td></tr>
+                                                            <tr><th>状态</th><td class="${host.status === 'up' ? 'status-online' : 'status-offline'}">${host.status === 'up' ? '在线' : '离线'}</td></tr>
+                                                            <tr><th>最后上报时间</th><td>${host.last_report_time || 'N/A'}</td></tr>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- 系统详情卡片 -->
+                                            <div class="layui-col-md6">
+                                                <div class="layui-card">
+                                                    <div class="layui-card-header">系统详情</div>
+                                                    <div class="layui-card-body">
+                                                        <table class="layui-table">
+                                                            <tr><th>系统</th><td>${host.os_details?.system || 'N/A'}</td></tr>
+                                                            <tr><th>版本</th><td>${host.os_details?.release || 'N/A'}</td></tr>
+                                                            <tr><th>详细信息</th><td>${host.os_details?.version || 'N/A'}</td></tr>
+                                                            <tr><th>架构</th><td>${host.os_details?.machine || 'N/A'}</td></tr>
+                                                            <tr><th>处理器</th><td>${host.os_details?.processor || 'N/A'}</td></tr>
+                                                            <tr><th>Python版本</th><td>${host.os_details?.python_version || 'N/A'}</td></tr>
+                                                            <tr><th>CPU核心数</th><td>${host.os_details?.cpu_count || 'N/A'}</td></tr>
+                                                            <tr><th>总内存(GB)</th><td>${host.os_details?.memory_total ? host.os_details.memory_total.toFixed(2) : 'N/A'}</td></tr>
+                                                            <tr><th>总磁盘(GB)</th><td>${host.os_details?.disk_total ? host.os_details.disk_total.toFixed(2) : 'N/A'}</td></tr>
+                                                            <tr><th>开机时间</th><td>${host.os_details?.boot_time || 'N/A'}</td></tr>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- 运行时指标卡片 -->
+                                            <div class="layui-col-md12">
+                                                <div class="layui-card">
+                                                    <div class="layui-card-header">运行时指标</div>
+                                                    <div class="layui-card-body">
+                                                        <div class="layui-row layui-col-space10">
+                                                            <div class="layui-col-md3">
+                                                                <div class="metric-card">
+                                                                    <div class="metric-label">客户端运行时间 (秒)</div>
+                                                                    <div class="metric-value" data-metric="client_uptime">${metrics.client_uptime && Array.isArray(metrics.client_uptime) && metrics.client_uptime[0]?.value && metrics.client_uptime[0].value[1] !== undefined ? metrics.client_uptime[0].value[1] : 'N/A'}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="layui-col-md3">
+                                                                <div class="metric-card">
+                                                                    <div class="metric-label">CPU 使用率 (%)</div>
+                                                                    <div class="metric-value" data-metric="client_cpu_usage">${metrics.client_cpu_usage && Array.isArray(metrics.client_cpu_usage) && metrics.client_cpu_usage[0]?.value && metrics.client_cpu_usage[0].value[1] !== undefined ? metrics.client_cpu_usage[0].value[1] : 'N/A'}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="layui-col-md3">
+                                                                <div class="metric-card">
+                                                                    <div class="metric-label">内存使用率 (%)</div>
+                                                                    <div class="metric-value" data-metric="client_memory_usage">${metrics.client_memory_usage && Array.isArray(metrics.client_memory_usage) && metrics.client_memory_usage[0]?.value && metrics.client_memory_usage[0].value[1] !== undefined ? metrics.client_memory_usage[0].value[1] : 'N/A'}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="layui-col-md3">
+                                                                <div class="metric-card">
+                                                                    <div class="metric-label">运行进程数</div>
+                                                                    <div class="metric-value" data-metric="client_process_count">${metrics.client_process_count && Array.isArray(metrics.client_process_count) && metrics.client_process_count[0]?.value && metrics.client_process_count[0].value[1] !== undefined ? metrics.client_process_count[0].value[1] : 'N/A'}</div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                layer.open({
+                                    type: 1,
+                                    title: '主机详情 - ' + (host.hostname || '未知主机'),
+                                    area: ['80%', '80%'],
+                                    content: content,
+                                    shade: 0.5,
+                                    btn: ['关闭'],
+                                    btnAlign: 'c',
+                                    success: function(layero, index){
+                                        //console.log('Popup opened with data:', JSON.stringify(host, null, 2));
+                                        var interval = setInterval(function(){
+                                            $.ajax({
+                                                url: '/host_details_json/' + data.host_id,
+                                                type: 'GET',
+                                                success: function(res){
+                                                    if(res.status === 'success'){
+                                                        if (data.status === 'up') {
+                                                            layero.find('.metric-value[data-metric="client_uptime"]').text(res.host.metrics.client_uptime[0]?.value[1] || 'N/A');
+                                                            layero.find('.metric-value[data-metric="client_cpu_usage"]').text(res.host.metrics.client_cpu_usage[0]?.value[1] || 'N/A');
+                                                            layero.find('.metric-value[data-metric="client_memory_usage"]').text(res.host.metrics.client_memory_usage[0]?.value[1] || 'N/A');
+                                                            layero.find('.metric-value[data-metric="client_process_count"]').text(res.host.metrics.client_process_count[0]?.value[1] || 'N/A');
+                                                            
+                                                        }
+                                                    }
+                                                }
+                                            });
+                                        }, 5000);
+                                        layero.on('close', function(){
+                                            clearInterval(interval);
+                                        });
+                                    },
+                                    end: function(){
+                                        console.log('Popup closed');
+                                    }
+                                });
+                            } else {
+                                layer.msg('获取主机详情失败：' + res.message, {icon: 5});
+                            }
+                        },
+                        error: function(xhr, status, error){
+                            layer.msg('请求失败：' + (error || '未知错误'), {icon: 5});
+                            console.error('AJAX error:', status, error, xhr.responseText);
+                        }
+                    });
+                }else if (obj.event === 'del') {
+                    if (data.status == 'up'){
+                        layer.msg("当前主机在线，无法删除！！！", { icon: 5 })
+                    }else{
+                        layer.confirm('确定要删除主机<span style="color: red">【'+ data.hostname +'】</span> 吗？', function(index) {
+                            // 发送删除请求
+                            $.ajax({
+                                url: '/delete_host',
+                                type: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify({host_id: data.host_id}),
+                                success: function(res) {
+                                    if (res.status === 'success') {
+                                        layer.msg('删除成功', { icon: 6 });
+                                        // 刷新表格
+                                        obj.del();
+                                    } else {
+                                        layer.msg('删除失败：' + res.message, { icon: 5 });
+                                    }
+                                },
+                                error: function() {
+                                    layer.msg('删除请求失败');
+                                }
+                            });
+                            layer.close(index); // 关闭弹出层
+                        });
+                        
+                    }
+                }
+            });
+        });
+    </script>
+{% endblock %}

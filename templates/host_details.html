@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}主机详情{% endblock %}
+{% block head_style %}
+<style>
+    .layui-card { box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 8px; margin-bottom: 20px; }
+    .layui-card-header { font-size: 16px; font-weight: bold; background: linear-gradient(to right, #f0f9ff, #e6f3ff); }
+    .layui-table { margin: 0; font-size: 14px; }
+    .layui-table th { background-color: #f8f9fa; font-size: 14px; }
+    .metric-card { margin-bottom: 15px; padding: 10px; background: #fff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .metric-value { font-size: 20px; color: #1E9FFF; }
+    .metric-label { color: #666; font-size: 12px; }
+    .status-online { color: #009688; font-weight: bold; }
+    .status-offline { color: #FF5722; font-weight: bold; }
+    .layui-container { padding: 15px; }
+</style>
+{% endblock %}
+{% block context %}
+<div class="layui-container">
+    <div class="layui-row layui-col-space10">
+        <!-- 基本信息卡片 -->
+        <div class="layui-col-md6">
+            <div class="layui-card">
+                <div class="layui-card-header">基本信息</div>
+                <div class="layui-card-body">
+                    <table class="layui-table">
+                        <tr><th>主机ID</th><td>{{ host.host_id }}</td></tr>
+                        <tr><th>主机名</th><td>{{ host.hostname }}</td></tr>
+                        <tr><th>内网IP</th><td>{{ host.ip }}</td></tr>
+                        <tr><th>公网IP</th><td>{{ host.public_ip or 'N/A' }}</td></tr>
+                        <tr><th>操作系统</th><td>{{ host.os_version }}</td></tr>
+                        <tr><th>客户端版本:</th><td>{{ host.client_version or 'N/A' }}</td></tr>
+                        <tr><th>状态</th><td class="{{ 'status-online' if host.status == 'up' else 'status-offline' }}">{{ '在线' if host.status == 'up' else '离线' }}</td></tr>
+                        <tr><th>最后上报时间</th><td>{{ host.last_report_time.isoformat() }}</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- 系统详情卡片 -->
+        <div class="layui-col-md6">
+            <div class="layui-card">
+                <div class="layui-card-header">系统详情</div>
+                <div class="layui-card-body">
+                    <table class="layui-table">
+                        <tr><th>系统</th><td>{{ host.os_details.system or 'N/A' }}</td></tr>
+                        <tr><th>版本</th><td>{{ host.os_details.release or 'N/A' }}</td></tr>
+                        <tr><th>详细信息</th><td>{{ host.os_details.version or 'N/A' }}</td></tr>
+                        <tr><th>架构</th><td>{{ host.os_details.machine or 'N/A' }}</td></tr>
+                        <tr><th>处理器</th><td>{{ host.os_details.processor or 'N/A' }}</td></tr>
+                        <tr><th>Python版本</th><td>{{ host.os_details.python_version or 'N/A' }}</td></tr>
+                        <tr><th>CPU核心数</th><td>{{ host.os_details.cpu_count or 'N/A' }}</td></tr>
+                        <tr><th>总内存(GB)</th><td>{{ host.os_details.memory_total|round(2) if host.os_details.memory_total else 'N/A' }}</td></tr>
+                        <tr><th>总磁盘(GB)</th><td>{{ host.os_details.disk_total|round(2) if host.os_details.disk_total else 'N/A' }}</td></tr>
+                        <tr><th>开机时间</th><td>{{ host.os_details.boot_time or 'N/A' }}</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- 运行时指标卡片 -->
+        <div class="layui-col-md12">
+            <div class="layui-card">
+                <div class="layui-card-header">运行时指标</div>
+                <div class="layui-card-body">
+                    <div class="layui-row layui-col-space10">
+                        <div class="layui-col-md3">
+                            <div class="metric-card">
+                                <div class="metric-label">客户端运行时间 (秒)</div>
+                                <div class="metric-value">{{ metrics.client_uptime[0].value[1] if metrics.client_uptime and metrics.client_uptime[0] else 'N/A' }}</div>
+                            </div>
+                        </div>
+                        <div class="layui-col-md3">
+                            <div class="metric-card">
+                                <div class="metric-label">CPU 使用率 (%)</div>
+                                <div class="metric-value">{{ metrics.client_cpu_usage[0].value[1] if metrics.client_cpu_usage and metrics.client_cpu_usage[0] else 'N/A' }}</div>
+                            </div>
+                        </div>
+                        <div class="layui-col-md3">
+                            <div class="metric-card">
+                                <div class="metric-label">内存使用率 (%)</div>
+                                <div class="metric-value">{{ metrics.client_memory_usage[0].value[1] if metrics.client_memory_usage and metrics.client_memory_usage[0] else 'N/A' }}</div>
+                            </div>
+                        </div>
+                        <div class="layui-col-md3">
+                            <div class="metric-card">
+                                <div class="metric-label">运行进程数</div>
+                                <div class="metric-value">{{ metrics.client_process_count[0].value[1] if metrics.client_process_count and metrics.client_process_count[0] else 'N/A' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block custom_js %}
+<script src="/static/layui/layui.js"></script>
+<script>
+    layui.use(['layer'], function(){
+        var layer = layui.layer;
+    });
+</script>
+{% endblock %}
