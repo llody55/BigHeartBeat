@@ -24,10 +24,11 @@
                 <div class="layui-card-body">
                     <table class="layui-table">
                         <tr><th>主机ID</th><td>{{ host.host_id }}</td></tr>
-                        <tr><th>主机名</th><td>{{ host.hostname }}</td></tr>
-                        <tr><th>内网IP</th><td>{{ host.ip }}</td></tr>
+                        <tr><th>项目区域</th><td>{{ host.region or 'N/A'}}</td></tr>
+                        <tr><th>主机名</th><td>{{ host.hostname or 'N/A'}}</td></tr>
+                        <tr><th>内网IP</th><td>{{ host.ip or 'N/A'}}</td></tr>
                         <tr><th>公网IP</th><td>{{ host.public_ip or 'N/A' }}</td></tr>
-                        <tr><th>操作系统</th><td>{{ host.os_version }}</td></tr>
+                        <tr><th>操作系统</th><td>{{ host.os_version or 'N/A'}}</td></tr>
                         <tr><th>客户端版本:</th><td>{{ host.client_version or 'N/A' }}</td></tr>
                         <tr><th>状态</th><td class="{{ 'status-online' if host.status == 'up' else 'status-offline' }}">{{ '在线' if host.status == 'up' else '离线' }}</td></tr>
                         <tr><th>最后上报时间</th><td>{{ host.last_report_time.isoformat() }}</td></tr>
@@ -97,6 +98,8 @@
 <script>
     layui.use(['layer'], function(){
         var layer = layui.layer;
+        layer.msg('Hello World');
+        
     });
 </script>
 {% endblock %}

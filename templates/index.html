@@ -118,7 +118,8 @@
                 cols: [
                     [ // 表头
                         { type: 'checkbox', fixed: 'left' } ,  //全选按钮
-                        {field: 'host_id', title: '主机ID'},
+                        {field: 'host_id', title: '主机ID', sort: true},
+                        {field: 'region', title: '区域', sort: true},
                         {field: 'hostname', title: '主机名', sort: true},
                         {field: 'ip', title: '内网 IP', sort: true},
                         {field: 'public_ip', title: '公网 IP', sort: true},
@@ -219,6 +220,7 @@
                                                     <div class="layui-card-body">
                                                         <table class="layui-table">
                                                             <tr><th>主机ID</th><td>${host.host_id || 'N/A'}</td></tr>
+                                                            <tr><th>区域</th><td>${host.region || 'N/A'}</td></tr>
                                                             <tr><th>主机名</th><td>${host.hostname || 'N/A'}</td></tr>
                                                             <tr><th>内网IP</th><td>${host.ip || 'N/A'}</td></tr>
                                                             <tr><th>公网IP</th><td>${host.public_ip || 'N/A'}</td></tr>

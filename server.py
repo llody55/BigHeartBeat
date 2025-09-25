@@ -119,6 +119,7 @@ class Host(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     host_id = db.Column(db.String(128), unique=True, nullable=False)
     hostname = db.Column(db.String(128), nullable=False)
+    region = db.Column(db.String(64), nullable=True)
     ip = db.Column(db.String(15), nullable=False)
     public_ip = db.Column(db.String(15), nullable=False)
     os_version = db.Column(db.String(128), nullable=False)
@@ -145,6 +146,7 @@ def list_hosts():
     hosts_with_status = [
         {
             'host_id': host.host_id,
+            'region': host.region,
             'hostname': host.hostname,
             'ip': host.ip,
             'public_ip': host.public_ip,
@@ -205,6 +207,7 @@ def host_details_json(host_id):
         'status': 'success',
         'host': {
             'host_id': host.host_id,
+            'region': host.region,
             'hostname': host.hostname,
             'ip': host.ip,
             'public_ip': host.public_ip,
@@ -228,6 +231,7 @@ def register():
     host = Host.query.filter_by(host_id=host_id).first()
     if host:
         host.hostname = data['hostname']
+        host.region = data.get('region', '')
         host.ip = data['ip']
         host.public_ip = data['public_ip']
         host.os_version = data['os_version']
@@ -239,6 +243,7 @@ def register():
         host = Host(
             host_id=host_id,
             hostname=data['hostname'],
+            region=data.get('region', ''),
             ip=data['ip'],
             public_ip=data['public_ip'],
             os_version=data['os_version'],
@@ -313,7 +318,7 @@ def report():
 @api_app.route('/metrics', methods=['GET'])
 def metrics():
     for host in Host.query.all():
-        HOST_STATUS.labels(host_id=host.host_id, hostname=host.hostname).set(1 if host.status == 'up' else 0)
+        HOST_STATUS.labels(host_id=host.host_id,region=host.region, hostname=host.hostname,ip=host.ip, public_ip=host.public_ip, os_version=host.os_version, client_version=host.client_version).set(1 if host.status == 'up' else 0)
     return Response(generate_latest(), mimetype='text/plain', content_type='text/plain; charset=utf-8')
 
 # 定时检查主机状态
