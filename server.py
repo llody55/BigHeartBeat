@@ -11,6 +11,9 @@ from prometheus_client import Gauge, generate_latest
 from flask import Response
 import requests
 from logging.config import dictConfig
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # 从环境变量获取配置，设置默认值
 # 日志配置
@@ -134,7 +137,7 @@ with web_app.app_context():
     db.create_all()
 
 # Prometheus 指标：主机状态
-HOST_STATUS = Gauge('host_status', 'Host status (1=up, 0=down)', ['host_id', 'hostname'])
+HOST_STATUS = Gauge('host_status', 'Host status (1=up, 0=down)', ['host_id', 'hostname', 'region', 'ip', 'public_ip', 'os_version', 'client_version'])
 
 # Web 应用路由
 @web_app.route('/')
@@ -305,11 +308,22 @@ def report():
             return jsonify({'status': 'error', 'message': 'Host not registered'}), 400
 
         # 转发到 VictoriaMetrics
-        headers = {'Content-Type': 'text/plain; charset=utf-8'}
-        response = requests.post(VICTORIA_METRICS_URL, data=data.encode('utf-8'), headers=headers)
-        response.raise_for_status()
-        logging.info(f"Successfully forwarded to VictoriaMetrics. Status: {response.status_code}, Response: {response.text}")
+        # 异步转发到 VictoriaMetrics, 避免阻塞 API 响应
+        def forward_to_vm(report_data):  # 传入 str 类型的 data
+            headers = {'Content-Type': 'text/plain; charset=utf-8'}
+            session = requests.Session()
+            retry = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+            adapter = HTTPAdapter(max_retries=retry)
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
+            try:
+                response = session.post(VICTORIA_METRICS_URL, data=report_data.encode('utf-8'), headers=headers, timeout=30)
+                response.raise_for_status()
+                logging.info(f"Successfully forwarded to VictoriaMetrics. Status: {response.status_code}")
+            except Exception as e:
+                logging.error(f"Forward failed: {str(e)}")  # 只 log，不返回响应
 
+        threading.Thread(target=forward_to_vm, args=(data,)).start()  # 传递 str data
         return jsonify({'status': 'success'})
     except Exception as e:
         logging.error(f"Error processing /report request: {e}")
@@ -318,7 +332,7 @@ def report():
 @api_app.route('/metrics', methods=['GET'])
 def metrics():
     for host in Host.query.all():
-        HOST_STATUS.labels(host_id=host.host_id,region=host.region, hostname=host.hostname,ip=host.ip, public_ip=host.public_ip, os_version=host.os_version, client_version=host.client_version).set(1 if host.status == 'up' else 0)
+        HOST_STATUS.labels(host_id=host.host_id, hostname=host.hostname,region=host.region,ip=host.ip,public_ip=host.public_ip,os_version=host.os_version,client_version=host.client_version).set(1 if host.status == 'up' else 0)
     return Response(generate_latest(), mimetype='text/plain', content_type='text/plain; charset=utf-8')
 
 # 定时检查主机状态
