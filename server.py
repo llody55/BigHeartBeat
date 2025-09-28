@@ -1,5 +1,8 @@
 import threading
 import os
+import gzip
+import io
+import zstd
 import logging
 import re
 import time
@@ -264,9 +267,17 @@ def register():
 @api_app.route('/report', methods=['POST'])
 def report():
     try:
-        data = request.data.decode('utf-8')
+        encoding = request.headers.get('Content-Encoding')
+        if encoding == 'zstd':
+            compressed_data = request.data
+            data = zstd.decompress(compressed_data).decode('utf-8')
+        elif encoding == 'gzip':
+            data = gzip.decompress(request.data).decode('utf-8')
+        else:
+            data = request.data.decode('utf-8')
         host_id = request.headers.get('X-Hostid')
         logging.info(f"Received report with host_id: {host_id}, data size: {len(data)} bytes")
+        logging.debug(f"Data sample (first 200 chars): {data[:200]}")
   
         # 解析 Prometheus 指标
         metrics = {}

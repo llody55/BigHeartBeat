@@ -2,7 +2,7 @@ version: '3'
 
 services:
   bigheartbeat:
-    image: swr.cn-southwest-2.myhuaweicloud.com/llody/bigheartbeat:v0.1.0
+    image: swr.cn-southwest-2.myhuaweicloud.com/llody/bigheartbeat:v0.1.4
     container_name: bigheartbeat
     ports:
       - "5000:5000"

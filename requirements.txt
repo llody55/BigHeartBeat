@@ -5,3 +5,4 @@ urllib3~=1.26.18
 psutil~=5.9.6
 requests~=2.32.3
 prometheus_client~=0.21.1
+zstd~=1.5.7.2

@@ -95,6 +95,9 @@ job_name: "system_monitoring"
 # 数据上报间隔（单位：秒）
 report_interval: 5
 
+# 数据压缩方式,默认不压缩，可选值：none, gzip, zstd
+compression: none
+
 # 抓取目标配置，类似于 vmagent 的 scrape_configs
 scrape_configs:
   - job_name: "node_exporter"
