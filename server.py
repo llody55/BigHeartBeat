@@ -149,6 +149,19 @@ def index():
 
 @web_app.route('/list_hosts', methods=['GET'])
 def list_hosts():
+    # 获取查询参数
+    hostname = request.args.get('hostname', '').strip()
+    region = request.args.get('region', '').strip()
+    query = Host.query
+
+    # 模糊搜索 hostname
+    if hostname:
+        query = query.filter(Host.hostname.ilike(f'%{hostname}%'))
+    # 过滤 region
+    if region:
+        query = query.filter(Host.region == region)
+    
+    # 获取主机列表
     hosts_with_status = [
         {
             'host_id': host.host_id,
@@ -161,13 +174,24 @@ def list_hosts():
             'last_report_time': host.last_report_time.isoformat(),
             'status': host.status
         }
-        for host in Host.query.all()
+        for host in query.all() 
     ]
     return jsonify({
         "code": 0,
         "msg": "",
         "count": len(hosts_with_status),
         "data": hosts_with_status
+    })
+
+@web_app.route('/regions', methods=['GET'])
+def get_regions():
+    regions = db.session.query(Host.region).distinct().filter(Host.region != None).all()
+    regions = [r[0] for r in regions]
+    logging.info(f"Returning unique regions: {regions}")
+    return jsonify({
+        "code": 0,
+        "msg": "",
+        "data": regions
     })
 
 @web_app.route('/delete_host', methods=['POST'])
@@ -355,7 +379,7 @@ def check_host_status():
             if time_diff > TIMEOUT_THRESHOLD and host.status != 'down':
                 host.status = 'down'
                 db.session.commit()
-                logging.warning(f"Host {host.hostname} is down")
+                logging.warning(f"Host {host.hostname} in region {host.region} is down")
 
 # 统一启动函数
 def run_apps():

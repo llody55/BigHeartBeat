@@ -47,6 +47,19 @@
     .metric-card { margin-bottom: 15px; padding: 10px; background: #fff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
     .metric-value { font-size: 20px; color: #1E9FFF; }
     .metric-label { color: #666; font-size: 12px; }
+    .toolbar-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .search-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .layui-form-select { width: 150px; }
+    .refresh-buttons { display: flex; gap: 10px; }
 </style>
 {% endblock %}
 {% block context %}
@@ -59,18 +72,26 @@
     <div class="layui-card-body">
         <div class="layui-row">
             <div class="layui-col-md12">
-                <input type="text" name="name" lay-verify="title" placeholder="请输入名称" class="layui-input"
-                    style="width: 150px;float: left">
-                <button class="layui-btn" id="searchBtn" style="float: left">搜索</button>
-                <!-- 手动刷新按钮 -->
-                <button class="layui-btn reloads custom-refresh-btn" id="refreshBtn" lay-event="shuaBtn">
-                    <i class="layui-icon layui-icon-refresh"></i>
-                </button>
-                <!-- 定时刷新开关 -->
-                <button class="layui-btn layui-btn-warm" id="autoRefreshBtn" style="float: right;">
-                    <i class="layui-icon layui-icon-time"></i> 定时刷新
-                    <span id="autoRefreshStatus">（已关闭）</span>
-                </button>
+                <div class="toolbar-container">
+                    <div class="search-container">
+                        <input type="text" name="hostname" id="hostnameSearch" placeholder="请输入主机名" class="layui-input" style="width: 150px;">
+                        <div class="layui-form">
+                            <select name="region" id="regionSelect" lay-filter="regionFilter">
+                                <option value="">所有地域</option>
+                            </select>
+                        </div>
+                        <button class="layui-btn" id="searchBtn">搜索</button>
+                    </div>
+                    <div class="refresh-buttons">
+                        <button class="layui-btn reloads custom-refresh-btn" id="refreshBtn" lay-event="shuaBtn">
+                            <i class="layui-icon layui-icon-refresh"></i>
+                        </button>
+                        <button class="layui-btn layui-btn-warm" id="autoRefreshBtn">
+                            <i class="layui-icon layui-icon-time"></i> 定时刷新
+                            <span id="autoRefreshStatus">（已关闭）</span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div class="layui-col-md12">
@@ -98,6 +119,26 @@
             var table = layui.table;
             var form = layui.form;
             var $ = layui.jquery;
+
+            // 加载地域下拉框数据
+            $.ajax({
+                url: '/regions',
+                type: 'GET',
+                success: function(res) {
+                    if (res.code === 0) {
+                        var select = $('#regionSelect');
+                        res.data.forEach(function(region) {
+                            select.append(`<option value="${region}">${region}</option>`);
+                        });
+                        form.render('select');
+                    } else {
+                        layer.msg('加载地域失败：' + res.msg, {icon: 5});
+                    }
+                },
+                error: function() {
+                    layer.msg('加载地域失败', {icon: 5});
+                }
+            });
 
             // 定义表格列
             table.render({
@@ -129,11 +170,39 @@
                         {field: 'status', title: '状态', sort: true, templet: function(d) {
                             return d.status === 'up' ? '<span class="layui-badge layui-bg-green">在线</span>' : '<span class="layui-badge layui-bg-red">离线</span>';
                         }},
-                        { fixed: 'right', title: '操作', toolbar: '#barDemo', width: 250, align: "center" }//操作按钮
+                        { fixed: 'right', title: '操作', toolbar: '#barDemo', width: 150, align: "center" }//操作按钮
                     ]
                 ],
                 id:'TT', //设置表格ID，用于更新数据
+                done: function(res) {
+                    //console.log('Table data loaded:', res);
+                }
             });
+
+            // 搜索按钮事件
+            $('#searchBtn').on('click', function() {
+                var hostname = $('#hostnameSearch').val().trim();
+                var region = $('#regionSelect').val();
+                console.log('Search clicked - hostname:', hostname, 'region:', region);
+                table.reload('TT', {
+                    url: '/list_hosts',
+                    where: { hostname: hostname, region: region },
+                    page: { curr: 1 }
+                }, 'data');
+            });
+
+            // 监听地域下拉框选择
+            form.on('select(regionFilter)', function(data) {
+                var hostname = $('#hostnameSearch').val().trim();
+                var region = data.value;
+                console.log('Region selected - hostname:', hostname, 'region:', region);
+                table.reload('TT', {
+                    url: '/list_hosts',
+                    where: { hostname: hostname, region: region },
+                    page: { curr: 1 }
+                }, 'data');
+            });
+
             // 监听刷新按钮点击事件
             $('#refreshBtn').on('click', function () {
                 //获取当前页码
@@ -210,6 +279,35 @@
                                 };
                                 // 合并默认值和实际值
                                 metrics = Object.assign({}, defaultMetrics, metrics);
+
+                                // 格式化时间函数
+                                function formatDuration(seconds) {
+                                    if (seconds === 'N/A' || seconds === null || seconds === undefined) return 'N/A';
+                                    seconds = parseInt(seconds, 10);
+                                    if (isNaN(seconds)) return 'N/A';
+
+                                    const years = Math.floor(seconds / (365 * 24 * 3600));
+                                    const remainingSecondsAfterYears = seconds % (365 * 24 * 3600);
+                                    const months = Math.floor(remainingSecondsAfterYears / (30 * 24 * 3600));
+                                    const remainingSecondsAfterMonths = remainingSecondsAfterYears % (30 * 24 * 3600);
+                                    const days = Math.floor(remainingSecondsAfterMonths / (24 * 3600));
+                                    const remainingSecondsAfterDays = remainingSecondsAfterMonths % (24 * 3600);
+                                    const hours = Math.floor(remainingSecondsAfterDays / 3600);
+                                    const remainingSecondsAfterHours = remainingSecondsAfterDays % 3600;
+                                    const minutes = Math.floor(remainingSecondsAfterHours / 60);
+                                    const secs = remainingSecondsAfterHours % 60;
+
+                                    const parts = [];
+                                    if (years > 0) parts.push(`${years}年`);
+                                    if (months > 0) parts.push(`${months}月`);
+                                    if (days > 0) parts.push(`${days}天`);
+                                    if (hours > 0) parts.push(`${hours}小时`);
+                                    if (minutes > 0) parts.push(`${minutes}分`);
+                                    if (secs > 0 || parts.length === 0) parts.push(`${secs}秒`);
+
+                                    return parts.join('');
+                                }
+
                                 var content = `
                                     <div class="layui-container">
                                         <div class="layui-row layui-col-space10">
@@ -259,8 +357,8 @@
                                                         <div class="layui-row layui-col-space10">
                                                             <div class="layui-col-md3">
                                                                 <div class="metric-card">
-                                                                    <div class="metric-label">客户端运行时间 (秒)</div>
-                                                                    <div class="metric-value" data-metric="client_uptime">${metrics.client_uptime && Array.isArray(metrics.client_uptime) && metrics.client_uptime[0]?.value && metrics.client_uptime[0].value[1] !== undefined ? metrics.client_uptime[0].value[1] : 'N/A'}</div>
+                                                                    <div class="metric-label">客户端运行时间</div>
+                                                                    <div class="metric-value" data-metric="client_uptime">${formatDuration(metrics.client_uptime && Array.isArray(metrics.client_uptime) && metrics.client_uptime[0]?.value && metrics.client_uptime[0].value[1] !== undefined ? metrics.client_uptime[0].value[1] : 'N/A')}</div>
                                                                 </div>
                                                             </div>
                                                             <div class="layui-col-md3">
@@ -291,7 +389,7 @@
                                 layer.open({
                                     type: 1,
                                     title: '主机详情 - ' + (host.hostname || '未知主机'),
-                                    area: ['80%', '80%'],
+                                    area: ['75%', '80%'],
                                     content: content,
                                     shade: 0.5,
                                     btn: ['关闭'],
