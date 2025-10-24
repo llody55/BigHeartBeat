@@ -1,0 +1,53 @@
+name: CI/CD Pipeline for BigHeartBeat
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  REGISTRY: swr.cn-southwest-2.myhuaweicloud.com
+  RELEASE_VERSION: 'v0.1.6'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Login to Huawei SWR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.HWYUM_DOCKER_USERNAME }}
+        password: ${{ secrets.HWYUM_DOCKER_PASSWORD }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: ${{ matrix.platform }}
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/llody/bigheartbeat:${{ env.RELEASE_VERSION }}
+          ${{ env.REGISTRY }}/llody/bigheartbeat:latest

@@ -10,7 +10,7 @@ from flask import Flask, jsonify, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
-from prometheus_client import Gauge, generate_latest
+from prometheus_client import CollectorRegistry, Gauge, generate_latest
 from flask import Response
 import requests
 from logging.config import dictConfig
@@ -120,6 +120,11 @@ db = SQLAlchemy()
 db.init_app(web_app)
 db.init_app(api_app)
 
+# 服务端版本
+SERVER_VERSION = "v0.1.6"
+# 注入 Flask 配置
+web_app.config['SERVER_VERSION'] = SERVER_VERSION
+
 # 定义主机信息模型
 class Host(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -139,8 +144,18 @@ class Host(db.Model):
 with web_app.app_context():
     db.create_all()
 
-# Prometheus 指标：主机状态
-HOST_STATUS = Gauge('host_status', 'Host status (1=up, 0=down)', ['host_id', 'hostname', 'region', 'ip', 'public_ip', 'os_version', 'client_version'])
+# Prometheus 全局指标：主机状态 =< 0.1.5
+# HOST_STATUS = Gauge('host_status', 'Host status (1=up, 0=down)', ['host_id', 'hostname', 'region', 'ip', 'public_ip', 'os_version', 'client_version'])
+def build_host_status_metric():
+    return Gauge('host_status', 'Host status (1=up, 0=down)', 
+                 ['host_id', 'hostname', 'region', 'ip', 'public_ip', 'os_version', 'client_version'])
+
+# 注入模板上下文
+@web_app.context_processor
+def inject_global_context():
+    return {
+        'SERVER_VERSION': SERVER_VERSION
+    }
 
 # Web 应用路由
 @web_app.route('/')
@@ -364,11 +379,29 @@ def report():
         logging.error(f"Error processing /report request: {e}")
         return jsonify({'status': 'failed', 'error': str(e)}), 500
 
+# v0.1.6版本优化，动态生成告警指标
 @api_app.route('/metrics', methods=['GET'])
 def metrics():
-    for host in Host.query.all():
-        HOST_STATUS.labels(host_id=host.host_id, hostname=host.hostname,region=host.region,ip=host.ip,public_ip=host.public_ip,os_version=host.os_version,client_version=host.client_version).set(1 if host.status == 'up' else 0)
-    return Response(generate_latest(), mimetype='text/plain', content_type='text/plain; charset=utf-8')
+    registry = CollectorRegistry()
+    host_status = Gauge(
+        'host_status', 'Host status (1=up, 0=down)',
+        ['host_id', 'hostname', 'region', 'ip', 'public_ip', 'os_version', 'client_version'],
+        registry=registry
+    )
+    
+    with api_app.app_context():
+        for host in Host.query.all():
+            host_status.labels(
+                host_id=host.host_id,
+                hostname=host.hostname,
+                region=host.region or '',
+                ip=host.ip,
+                public_ip=host.public_ip,
+                os_version=host.os_version,
+                client_version=host.client_version or 'unknown'
+            ).set(1 if host.status == 'up' else 0)
+
+    return Response(generate_latest(registry), mimetype='text/plain; charset=utf-8')
 
 # 定时检查主机状态
 def check_host_status():

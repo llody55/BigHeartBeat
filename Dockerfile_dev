@@ -1,4 +1,4 @@
-FROM python:3.10.2-slim
+FROM swr.cn-southwest-2.myhuaweicloud.com/llody/python:3.10.2-slim
 
 MAINTAINER llody
 
@@ -8,7 +8,7 @@ WORKDIR /app
 
 COPY . /app
 
-RUN pip install -r requirements.txt
+RUN pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 # 暴露端口
 EXPOSE 5000 5001
