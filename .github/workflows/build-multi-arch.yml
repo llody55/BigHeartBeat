@@ -8,7 +8,6 @@ on:
     branches: [ main, master ]
 
 env:
-  REGISTRY: swr.cn-southwest-2.myhuaweicloud.com
   RELEASE_VERSION: 'v0.1.6'
 
 jobs:
@@ -41,12 +40,12 @@ jobs:
       run: |
         pip install -r requirements.txt
 
-    - name: Login to Huawei SWR
-      uses: docker/login-action@v3
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2.2.0
       with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ secrets.HWYUM_DOCKER_USERNAME }}
-        password: ${{ secrets.HWYUM_DOCKER_PASSWORD }}
+        registry: docker.io
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Build and push
       uses: docker/build-push-action@v5
@@ -56,5 +55,5 @@ jobs:
         platforms: linux/amd64,linux/arm64
         push: true
         tags: |
-          ${{ env.REGISTRY }}/llody/bigheartbeat:${{ env.RELEASE_VERSION }}
-          ${{ env.REGISTRY }}/llody/bigheartbeat:latest
+          llody/bigheartbeat:${{ env.RELEASE_VERSION }}
+          llody/bigheartbeat:latest
